@@ -1,0 +1,13 @@
+# go2rtc 配置示例 — 放到 ~/.config/go2rtc/go2rtc.yaml
+# 把 <访问码> 和 <打印机IP> 换成你自己的（和 .env 里的一致）
+
+api:
+  listen: ":1984"
+  origin: "*"
+
+streams:
+  bambu:
+    - "rtsps://bblp:<访问码>@<打印机IP>:322/streaming/live/1"
+
+webrtc:
+  listen: ":8555"

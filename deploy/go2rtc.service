@@ -1,0 +1,19 @@
+# systemd 服务 — 让 go2rtc 视频流开机自启
+# 用法:
+#   sudo cp deploy/go2rtc.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now go2rtc
+
+[Unit]
+Description=go2rtc video streaming
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+ExecStart=/usr/local/bin/go2rtc -config /home/pi/.config/go2rtc/go2rtc.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

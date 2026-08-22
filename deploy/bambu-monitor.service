@@ -1,0 +1,21 @@
+# systemd 服务 — 让监控页开机自启
+# 用法（假设代码在 /home/pi/bambu-print-monitor）:
+#   sudo cp deploy/bambu-monitor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bambu-monitor
+# 路径和用户名与你实际环境不同时，改下面 User / WorkingDirectory / ExecStart
+
+[Unit]
+Description=Bambu Print Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/bambu-print-monitor
+ExecStart=/home/pi/bambu-print-monitor/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 打印监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            padding: 8px 15px;
+            background: rgba(20, 20, 20, 0.95);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        .title {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            background: #333;
+        }
+        .status-badge.online { background: #1b4332; color: #95d5b2; }
+        .status-badge.printing { background: #0077b6; color: #90e0ef; }
+        .status-badge.offline { background: #5c1016; color: #f8d7da; }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .video-section {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+        }
+        #videoFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .info-panel {
+            width: 280px;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .info-card {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .info-card-title {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .progress-container {
+            margin-bottom: 10px;
+        }
+        .progress-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #333;
+            font-size: 13px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #888; }
+        .info-value { color: #fff; font-weight: 500; }
+        .temp-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .temp-item {
+            text-align: center;
+            padding: 10px;
+            background: #222;
+            border-radius: 8px;
+        }
+        .temp-icon { font-size: 20px; margin-bottom: 4px; }
+        .temp-value { font-size: 18px; font-weight: bold; }
+        .temp-target { font-size: 11px; color: #666; }
+        .file-name {
+            font-size: 12px;
+            color: #aaa;
+            word-break: break-all;
+            padding: 8px;
+            background: #222;
+            border-radius: 6px;
+        }
+        .controls {
+            padding: 8px 15px;
+            background: rgba(20, 20, 20, 0.95);
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #333;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #444; }
+        /* 全屏模式 */
+        body.fullscreen .header,
+        body.fullscreen .info-panel,
+        body.fullscreen .controls {
+            display: none;
+        }
+        body.fullscreen .main-content {
+            height: 100vh;
+        }
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .info-panel {
+                width: 100%;
+                max-height: 200px;
+            }
+            .main-content {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">🖨️ 3D 打印监控</div>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">连接中...</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <iframe id="videoFrame" src="{{ go2rtc_url }}/stream.html?src={{ stream_name }}&mode=webrtc" allow="autoplay"></iframe>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-card">
+                    <div class="info-card-title">打印进度</div>
+                    <div class="progress-container">
+                        <span class="progress-value" id="progress">--%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">剩余时间</span>
+                        <span class="info-value" id="remainingTime">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">层数</span>
+                        <span class="info-value" id="layerInfo">--</span>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-title">温度</div>
+                    <div class="temp-grid">
+                        <div class="temp-item">
+                            <div class="temp-icon">🔥</div>
+                            <div class="temp-value" id="nozzleTemp">--°C</div>
+                            <div class="temp-target" id="nozzleTarget">目标: --°C</div>
+                        </div>
+                        <div class="temp-item">
+                            <div class="temp-icon">🛏️</div>
+                            <div class="temp-value" id="bedTemp">--°C</div>
+                            <div class="temp-target" id="bedTarget">目标: --°C</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-title">当前文件</div>
+                    <div class="file-name" id="fileName">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="reconnect()">重新连接</button>
+            <button class="btn" onclick="toggleFullscreen()">全屏</button>
+        </div>
+    </div>
+
+    <script>
+        function reconnect() {
+            const frame = document.getElementById('videoFrame');
+            frame.src = frame.src;
+            fetchStatus();
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+                document.body.classList.remove('fullscreen');
+            } else {
+                document.documentElement.requestFullscreen();
+                document.body.classList.add('fullscreen');
+            }
+        }
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                updateUI(data);
+            } catch (e) {
+                console.error('获取状态失败:', e);
+            }
+        }
+
+        function updateUI(data) {
+            const badge = document.getElementById('statusBadge');
+            const statusText = document.getElementById('statusText');
+
+            // 状态徽章
+            badge.className = 'status-badge';
+            if (!data.online) {
+                badge.classList.add('offline');
+                statusText.textContent = '离线';
+            } else if (data.state === 'RUNNING') {
+                badge.classList.add('printing');
+                statusText.textContent = '打印中';
+            } else {
+                badge.classList.add('online');
+                statusText.textContent = data.state_cn || '在线';
+            }
+
+            // 进度
+            document.getElementById('progress').textContent = data.progress + '%';
+            document.getElementById('progressBar').style.width = data.progress + '%';
+            document.getElementById('remainingTime').textContent = data.remaining_time;
+
+            // 层数
+            if (data.total_layers > 0) {
+                document.getElementById('layerInfo').textContent =
+                    `${data.layer_num} / ${data.total_layers}`;
+            } else {
+                document.getElementById('layerInfo').textContent = '--';
+            }
+
+            // 温度
+            document.getElementById('nozzleTemp').textContent =
+                Math.round(data.nozzle_temp) + '°C';
+            document.getElementById('nozzleTarget').textContent =
+                '目标: ' + Math.round(data.nozzle_target) + '°C';
+            document.getElementById('bedTemp').textContent =
+                Math.round(data.bed_temp) + '°C';
+            document.getElementById('bedTarget').textContent =
+                '目标: ' + Math.round(data.bed_target) + '°C';
+
+            // 文件名
+            document.getElementById('fileName').textContent =
+                data.file_name || '无';
+        }
+
+        // 启动
+        fetchStatus();
+        setInterval(fetchStatus, 3000);
+
+        // 双击全屏
+        document.querySelector('.video-section').addEventListener('dblclick', toggleFullscreen);
+    </script>
+</body>
+</html>
